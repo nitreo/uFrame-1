@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using Invert.IOC;
 using uFrame.Kernel;
 using UniRx;
-using UniRx.Triggers;
 using UnityEngine;
 
 namespace uFrame.ECS
