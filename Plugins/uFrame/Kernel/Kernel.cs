@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using uFrame.Kernel;
 using UniRx;
 using UnityEngine;
@@ -13,6 +16,8 @@ namespace uFrame2
         private DiContainer _container;
         private IObservable<IKernel> _kernelReadyObservable;
         private IObservable<IKernel> _thisObservable;
+        private List<IKernelService> _services;
+        private List<IGetServicesHook> _getServiceHooks;
 
         public virtual DiContainer Container { get; set; }
 
@@ -30,19 +35,16 @@ namespace uFrame2
             get { return gameObject.scene; }
         }
 
-        private IObservable<IKernel> ThisObservable
-        {
-            get
-            {
-                return _thisObservable ?? (_thisObservable = Observable.Return(this as IKernel)); 
-            }
-        }
-
         private IObservable<IKernel> KernelReadyObservable
         {
             get
             {
-                return _kernelReadyObservable ?? (_kernelReadyObservable = Observable.FromCoroutineValue<IKernel>(WaitForKernelReadyCoroutine)); 
+                if (State == KernelState.Ready)
+                    return _thisObservable ?? (_thisObservable = Observable.Return(this as IKernel));
+
+                return _kernelReadyObservable ??
+                      (_kernelReadyObservable = Observable.FromCoroutineValue<IKernel>(WaitForKernelReadyCoroutine));
+
             }
         }
 
@@ -53,11 +55,6 @@ namespace uFrame2
 
         public IObservable<IKernel> WaitToLoad()
         {
-            //If kernel is ready, return immediate observable with this value
-            if (State == KernelState.Ready)
-                return ThisObservable;
-
-            //Wait for kernel to fully load
             return KernelReadyObservable; //TODO Same here
         }
 
@@ -77,20 +74,72 @@ namespace uFrame2
             KernelRegister.RegisterKernelForScene(UnityScene, this);
         }
 
-        public virtual void InitializeComponent(IKernelBehaviour kernelComponent)
+        public virtual void InitializeComponent(IKernelComponent kernelComponent)
         {
-            KernelRegister.Logger.Log(string.Format("KernelReady @ {0}.{1}", Name, kernelComponent.GetName()));
-
+            var monobeh = kernelComponent as MonoBehaviour;
+            monobeh.name += " @ " + Name;
             kernelComponent.EventAggregator = EventAggregator;
             kernelComponent.KernelLoaded();
         }
 
+        private void BindLocal<T>()
+        {
+            foreach (var instance in GetLocal<T>())
+            {
+                Container.BindInstance(instance);
+            }
+        }
+
+        private List<T> GetLocal<T>()
+        {
+            return gameObject
+                .GetComponentsInChildren(typeof(T))
+                .Cast<T>()
+                .ToList();
+        }
+
+        private List<T> ResolveAll<T>()
+        {
+            return Container.ResolveAll<T>(true);
+        }
+
         public virtual IObservable<IKernel> LoadKernel()
         {
-            KernelRegister.Logger.Log(string.Format("{0} Kernel Loaded", Name ?? gameObject.scene.name));
 
-            State = KernelState.Ready; //TODO Stub
-            return ThisObservable;
+            var services = GetLocal<IKernelService>();
+
+            GetLocal<IGetServicesHook>().ForEach(s=>s.GetServices(services)); //Include possible low-fidelity-introduced services
+
+            foreach (var service in services)
+            {
+                Container.Bind(service.GetType()).ToInstance(service);
+                Container.BindAllInterfacesToInstance(service);
+            }
+
+            foreach (var service in services)
+            {
+                service.EventAggregator = EventAggregator;
+                service.Setup();
+            }
+
+            services
+            .Select(service => service.SetupAsync())
+            .Where(setupAsyncObservable => setupAsyncObservable != null)
+            .WhenAll().Subscribe(_ =>
+            {
+
+                foreach (var service in services)
+                {
+                    Container.Inject(service);
+                }
+
+                ResolveAll<IKernelReadyHook>().ForEach(h=>h.KernelReady());
+
+                KernelRegister.Logger.Log(string.Format("{0} Kernel Ready", Name ?? gameObject.scene.name));
+                State = KernelState.Ready; //TODO Stub
+            });
+
+            return KernelReadyObservable;
         }
 
 

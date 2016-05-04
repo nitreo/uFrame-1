@@ -12,10 +12,10 @@ namespace uFrame2
 {
 
     /// <summary>
-    /// Use this code to turn your own monobeh classes into IKernelBehaviour.
+    /// Use this code to turn your own monobeh classes into IKernelComponent.
     /// Literally, implement the interface on your base class and copy-paste the code
     /// </summary>
-    public class KernelComponent : MonoBehaviour, IKernelBehaviour
+    public class KernelComponent : MonoBehaviour, IKernelComponent
     {
 
         public IEventAggregator EventAggregator { get; set; }
@@ -28,6 +28,8 @@ namespace uFrame2
         public Scene Scene { get { return gameObject.scene; } } //dreaming of new C# 5.0 => ,right?
 
         public virtual void KernelLoaded() {  }
+
+        public void Dispose() { }
     }
 
 }

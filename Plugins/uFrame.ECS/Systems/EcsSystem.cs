@@ -32,7 +32,6 @@ namespace uFrame.ECS
             get
             {
                 return EventAggregator as EcsEventAggregator;
-                
             }
         }
 

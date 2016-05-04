@@ -5,6 +5,7 @@ using System.Security.Policy;
 using uFrame.Kernel;
 using UniRx;
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.SceneManagement;
 using Zenject;
 using Object = UnityEngine.Object;
@@ -24,6 +25,8 @@ namespace uFrame2
         private static Logger _logger;
         private static string _editorKernelScene;
         private static IObservable<IKernel> _readyKernelObservable;
+        private static IObservable<IKernel> _nullRootKernelObservable;
+        private static IObservable<IKernel> _waitForRootKernelLoadCoroutine;
 
 
         static KernelRegister()
@@ -101,8 +104,9 @@ namespace uFrame2
         /// <param name="kernel"></param>
         public static void RegisterKernelForScene(UnityEngine.SceneManagement.Scene scene, IKernel kernel)
         {
-            // Touch the root kernel, in case it has not been done yet
-            LoadRootKernelIfNeeded();
+            // Touch the root kernel, in case it has not been done yet.
+            // Avoid if invoked from root kernel
+            if(scene.name != RootKernelScene) LoadRootKernelIfNeeded();
 
             // Map/Remap scene to kernel
             SceneKernels[scene] = kernel;
@@ -116,6 +120,7 @@ namespace uFrame2
             // if scene matches
             if (scene.name == RootKernelScene)
             {
+                IsRootKernelLoadingOrReady = true;
                 RootKernel = kernel;
                 //Use shared DIContainer  as Root DiContianer
                 kernel.Container = new DiContainer();
@@ -135,19 +140,24 @@ namespace uFrame2
 
         private static IObservable<IKernel> WaitForRootKernelLoad()
         {
-
-            if(!ShouldUseRootKernel)
-                return Observable.Return<IKernel>(null);
-
-            if (!IsRootKernelLoaded)
-                return Observable.FromCoroutineValue<IKernel>(WaitForRootKernelLoadCoroutine);
-
             return ReadyKernelObservable;
         }
 
         private static IObservable<IKernel> ReadyKernelObservable
         {
-            get { return _readyKernelObservable ?? (_readyKernelObservable = Observable.Return(RootKernel)); }
+            get
+            {
+                if (IsRootKernelLoaded)
+                    return _readyKernelObservable ?? (_readyKernelObservable = Observable.Return(RootKernel));
+
+                if (!ShouldUseRootKernel)
+                    return _nullRootKernelObservable ?? ( _nullRootKernelObservable = Observable.Return<IKernel>(null));
+
+//                if (!IsRootKernelLoaded)
+                    return _waitForRootKernelLoadCoroutine ??
+                    (_waitForRootKernelLoadCoroutine = Observable.FromCoroutineValue<IKernel>(WaitForRootKernelLoadCoroutine));
+
+            }
             set { _readyKernelObservable = value; }
         }
 
@@ -174,7 +184,7 @@ namespace uFrame2
             {
                 IKernel kernel = rootKernel; //Default kernel
                 if (SceneKernels.ContainsKey(scene)) kernel = SceneKernels[scene]; //Remap if scene kernel is available
-                if(kernel == null) throw new Exception("No root kernel was found and no matching scene kernel was detected.");
+                Assert.IsNotNull(kernel, "No root kernel was found and no matching scene kernel was detected.");
                 return kernel.WaitToLoad();
             });
 

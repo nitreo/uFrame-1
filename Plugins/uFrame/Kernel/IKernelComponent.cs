@@ -1,14 +1,10 @@
+using System;
 using uFrame.Kernel;
 
 namespace uFrame2
 {
-    public interface IKernelBehaviour
+    public interface IKernelComponent : IEventsAware, IDisposable
     {
-
-        /// <summary>
-        /// Event Aggregator
-        /// </summary>
-        IEventAggregator EventAggregator { get; set; }
 
         /// <summary>
         /// Scene of this behaviour

@@ -1,21 +1,18 @@
-﻿using uFrame.Kernel;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using uFrame.Kernel;
 using UniRx;
+using UnityEngine;
+using UnityEngineInternal;
 using Zenject;
 
 namespace uFrame2
 {
-    public interface IKernel
+    public interface IKernel : IEventsAware
     {
 
-        /// <summary>
-        /// Lazy-instantiated Zenject container
-        /// </summary>
         DiContainer Container { get; set; }
-
-        /// <summary>
-        /// Lazy-instantiated Event Aggregator
-        /// </summary>
-        IEventAggregator EventAggregator { get; set; }
 
         /// <summary>
         /// State of the kernel
@@ -26,7 +23,7 @@ namespace uFrame2
         /// Any component will be initialized with a kernel on start
         /// </summary>
         /// <param name="kernelComponent"></param>
-        void InitializeComponent(IKernelBehaviour kernelComponent);
+        void InitializeComponent(IKernelComponent kernelComponent);
         
         /// <summary>
         /// Any component will be initialized with a kernel on start
@@ -51,4 +48,51 @@ namespace uFrame2
         /// </summary>
         string Name { get; }
     }
+
+    public interface IEventsAware
+    {
+        IEventAggregator EventAggregator { get; set; }
+    }
+
+    public interface IKernelService : IKernelReadyHook, IEventsAware
+    {
+        /// <summary>
+        /// </summary>
+        void Setup();
+
+        /// <summary>
+        /// </summary>
+        /// <returns></returns>
+        IObservable<Unit> SetupAsync();
+
+    }
+
+    public interface LoadHook : IDisposable
+    {
+        void BeforeLoad();
+        void AfterLoad();
+    }
+
+    public interface IIoCHook : IDisposable
+    {
+        void BeforeIoCContainerSet(DiContainer container);
+        void AfterIoCContainerSet(DiContainer container);
+    }
+
+    public interface IKernelReadyHook : IDisposable
+    {
+        void KernelReady();
+    }
+
+    public interface IGetServicesHook : IDisposable
+    {
+        void GetServices(IList<IKernelService> services);
+    }
+
+    public interface IInitializeComponentHook : IDisposable
+    {
+        void InitializeComponent();
+        IObservable<IKernelComponent> InitializeComponentAsync();
+    }
+
 }

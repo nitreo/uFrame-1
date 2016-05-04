@@ -14,10 +14,6 @@ namespace uFrame2
         /// <returns></returns>
         public static IObservable<IKernel> LocateLoadedKernel(this MonoBehaviour script)
         {
-            //Ignore this logging crappile
-            var args = !string.IsNullOrEmpty(script.gameObject.scene.name) ? script.gameObject.scene.name : "Scene Is Not Saved";
-            KernelRegister.Logger.Log(string.Format("Locating kernel for {2} at {1} (0x{0:X8})", script.gameObject.scene.GetHashCode(), args,script.gameObject.name));
-
             return KernelRegister.GetLoadedKernelForScene(script.gameObject.scene);
         }
 
@@ -26,10 +22,9 @@ namespace uFrame2
         /// </summary>
         /// <param name="kernelBeh"></param>
         /// <returns></returns>
-        public static string GetName(this IKernelBehaviour kernelBeh)
+        public static string GetName(this IKernelComponent target)
         {
-            var monobeh = kernelBeh as MonoBehaviour;
-            return monobeh.gameObject.name;
+            return (target as MonoBehaviour).gameObject.name;
         }
     }
 }
